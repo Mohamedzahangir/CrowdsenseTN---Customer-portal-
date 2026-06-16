@@ -10,7 +10,7 @@ export const ProfilePage = {
       <!-- TopAppBar Header -->
       <header class="fixed top-0 w-full z-50 bg-surface/70 dark:bg-surface/70 backdrop-blur-md border-b border-outline-variant/30 shadow-md shadow-primary/10 flex justify-between items-center px-margin-mobile h-16 w-full">
         <div class="flex items-center gap-3">
-          <img class="w-8 h-8 object-contain mix-blend-multiply" src="/src/assets/logo.png" alt="CrowdSense TN Logo" />
+          <img class="w-8 h-8 object-contain mix-blend-multiply" src="/logo.png" alt="CrowdSense TN Logo" />
           <h1 class="text-xl md:text-2xl text-primary tracking-tight font-bold">CrowdSense TN</h1>
         </div>
         <button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-primary-container/10 transition-colors active:scale-95 duration-200" onclick="window.location.hash='#/profile'">

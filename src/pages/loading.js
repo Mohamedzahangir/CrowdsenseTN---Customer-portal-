@@ -10,7 +10,7 @@ export const LoadingPage = {
         <main class="flex flex-col items-center max-w-lg w-full text-center fade-in">
           <!-- Logo & Tagline Container -->
           <div class="relative group mb-10 w-full px-6 flex justify-center">
-            <img class="relative max-w-xs md:max-w-sm w-full object-contain mix-blend-multiply" style="filter: brightness(1.05) contrast(1.02);" src="/src/assets/logo_with_tagline.png" alt="CrowdSense TN Logo with Tagline" />
+            <img class="relative max-w-xs md:max-w-sm w-full object-contain mix-blend-multiply" style="filter: brightness(1.05) contrast(1.02);" src="/logo_with_tagline.png" alt="CrowdSense TN Logo with Tagline" />
           </div>
           
           <p class="text-on-surface-variant text-sm md:text-base font-medium opacity-80 mb-12">

@@ -74,7 +74,7 @@ export const AlertsPage = {
       <!-- TopAppBar Header -->
       <header class="fixed top-0 w-full z-50 bg-surface/70 backdrop-blur-md border-b border-outline-variant/20 shadow-sm shadow-primary/10 flex justify-between items-center px-margin-mobile h-16 w-full">
         <div class="flex items-center gap-3">
-          <img class="w-8 h-8 object-contain mix-blend-multiply" src="/src/assets/logo.png" alt="CrowdSense TN Logo" />
+          <img class="w-8 h-8 object-contain mix-blend-multiply" src="/logo.png" alt="CrowdSense TN Logo" />
           <h1 class="text-xl md:text-2xl text-primary tracking-tight font-bold">CrowdSense TN</h1>
         </div>
         <button class="material-symbols-outlined text-primary p-2 rounded-full hover:bg-primary/5 transition-colors active:scale-95 duration-200">notifications</button>
