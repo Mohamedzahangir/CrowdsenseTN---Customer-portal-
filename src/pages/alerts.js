@@ -1,72 +1,5 @@
 // alerts.js - Service Alerts feed page module
-
-const alertsData = [
-  {
-    id: "alert-1",
-    type: "critical",
-    categoryLabel: "Heavy Crowd Alerts",
-    timeAgo: "2 mins ago",
-    title: "Central Station Congestion",
-    description: "Platform 2 experiencing extreme density. Boarding delays expected for next 45 minutes for all passing services.",
-    affectedRoutes: ["Route 570", "Route 102"],
-    icon: "groups",
-    colorClass: "border-error",
-    bgClass: "bg-error-container",
-    textClass: "text-error"
-  },
-  {
-    id: "alert-2",
-    type: "diversions",
-    categoryLabel: "Route Diversions",
-    timeAgo: "15 mins ago",
-    title: "Anna Salai Road Maintenance",
-    description: "Routes diverted via Greams Road due to emergency metro sewer works. Temporary stops established at Apollo Junction.",
-    affectedRoutes: ["Route 21G", "Route 19B"],
-    icon: "alt_route",
-    colorClass: "border-tertiary",
-    bgClass: "bg-tertiary-fixed",
-    textClass: "text-tertiary"
-  },
-  {
-    id: "alert-3",
-    type: "updates",
-    categoryLabel: "Service Resumed",
-    timeAgo: "1 hour ago",
-    title: "OMR Express Lane Clear",
-    description: "Traffic bottleneck at Taramani resolved. Services returning to standard frequency and schedules.",
-    affectedRoutes: ["Route 570", "Route 102"],
-    icon: "check_circle",
-    colorClass: "border-[#008a4f]",
-    bgClass: "bg-green-100",
-    textClass: "text-[#008a4f]"
-  },
-  {
-    id: "alert-4",
-    type: "critical",
-    categoryLabel: "Heavy Crowd Alerts",
-    timeAgo: "3 hours ago",
-    title: "Marina Beach Event Density",
-    description: "Public gathering causing overcrowding at Light House bus terminus. High demand expected until 9 PM tonight.",
-    affectedRoutes: ["Route 102", "Route 23C"],
-    icon: "groups",
-    colorClass: "border-error",
-    bgClass: "bg-error-container",
-    textClass: "text-error"
-  },
-  {
-    id: "alert-5",
-    type: "updates",
-    categoryLabel: "General Updates",
-    timeAgo: "5 hours ago",
-    title: "Mount Road Delayed Construction",
-    description: "Gemini Flyover construction continues. Delays of 15-20 mins anticipated during peak evening hours.",
-    affectedRoutes: ["Route M70", "Route 47A"],
-    icon: "warning",
-    colorClass: "border-primary",
-    bgClass: "bg-primary-fixed",
-    textClass: "text-primary"
-  }
-];
+import { AlertService } from '../services/AlertService';
 
 export const AlertsPage = {
   render() {
@@ -121,6 +54,7 @@ export const AlertsPage = {
     function renderAlerts(filterType = "all") {
       if (!feedList) return;
 
+      const alertsData = AlertService.getCustomerAlerts();
       const filtered = filterType === "all" 
         ? alertsData 
         : alertsData.filter(alert => alert.type === filterType);

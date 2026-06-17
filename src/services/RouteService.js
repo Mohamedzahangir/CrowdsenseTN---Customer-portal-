@@ -1,16 +1,54 @@
-// RouteService.js - Handles route search, autocomplete, and transit matching.
-import { BusService } from './BusService';
-
-// Extract a unique list of all stops for search auto-completion
-const allStops = new Set();
-BusService.getAllBuses().forEach(bus => {
-  bus.stops.forEach(stop => allStops.add(stop.name));
-});
-const uniqueStops = Array.from(allStops).sort();
+// RouteService.js - Centralized service managing transit routes and stop queries.
+// Consumes the centralized SharedStore database and defines clear integration hooks.
+import { SharedStore, KEYS } from './SharedStore';
 
 export const RouteService = {
+  // Synchronous contract to maintain backward-compatibility with UI modules.
+  // API Integration: Swap with async/await and fetch('/api/v1/routes') when PostgreSQL/REST API backend is deployed.
+
+  getAllRoutes() {
+    // PostgreSQL Integration point: return await fetch('/api/routes').then(r => r.json());
+    return SharedStore.getItem(KEYS.ROUTES) || [];
+  },
+
+  getRouteDetails(routeNum) {
+    // PostgreSQL Integration point: return await fetch(`/api/routes/${routeNum}`).then(r => r.json());
+    const routes = this.getAllRoutes();
+    return routes.find(r => r.number === routeNum) || null;
+  },
+
   getAllStops() {
-    return uniqueStops;
+    const routes = this.getAllRoutes();
+    const allStops = new Set();
+    routes.forEach(route => {
+      route.stops.forEach(stop => allStops.add(stop.name));
+    });
+    return Array.from(allStops).sort();
+  },
+
+  // Admin Route Management actions
+  addRoute(route) {
+    // REST API Integration point: fetch('/api/routes', { method: 'POST', body: JSON.stringify(route) });
+    const routes = this.getAllRoutes();
+    routes.push(route);
+    SharedStore.setItem(KEYS.ROUTES, routes);
+  },
+
+  updateRoute(routeNum, updatedFields) {
+    // REST API Integration point: fetch(`/api/routes/${routeNum}`, { method: 'PUT', body: JSON.stringify(updatedFields) });
+    const routes = this.getAllRoutes();
+    const idx = routes.findIndex(r => r.number === routeNum);
+    if (idx !== -1) {
+      routes[idx] = { ...routes[idx], ...updatedFields };
+      SharedStore.setItem(KEYS.ROUTES, routes);
+    }
+  },
+
+  deleteRoute(routeNum) {
+    // REST API Integration point: fetch(`/api/routes/${routeNum}`, { method: 'DELETE' });
+    let routes = this.getAllRoutes();
+    routes = routes.filter(r => r.number !== routeNum);
+    SharedStore.setItem(KEYS.ROUTES, routes);
   },
 
   searchRoutes(source, destination) {
@@ -18,33 +56,41 @@ export const RouteService = {
 
     const normSource = source.trim().toLowerCase();
     const normDest = destination.trim().toLowerCase();
-    const allBuses = BusService.getAllBuses();
+    const routes = this.getAllRoutes();
     const results = [];
 
-    allBuses.forEach(bus => {
+    routes.forEach(route => {
       let sourceIndex = -1;
       let destIndex = -1;
 
-      for (let i = 0; i < bus.stops.length; i++) {
-        const stopName = bus.stops[i].name.toLowerCase();
+      for (let i = 0; i < route.stops.length; i++) {
+        const stopName = route.stops[i].name.toLowerCase();
         if (stopName.includes(normSource) && sourceIndex === -1) {
           sourceIndex = i;
         }
-        // Destination must appear after the source stop
         if (stopName.includes(normDest) && sourceIndex !== -1 && i > sourceIndex) {
           destIndex = i;
-          break; // found a valid forward connection
+          break;
         }
       }
 
       if (sourceIndex !== -1 && destIndex !== -1) {
-        const boardStop = bus.stops[sourceIndex];
-        const alightStop = bus.stops[destIndex];
+        const boardStop = route.stops[sourceIndex];
+        const alightStop = route.stops[destIndex];
         const travelDistance = alightStop.distance - boardStop.distance;
 
         // Estimate travel duration: roughly 2.5 minutes per km plus 1 minute dwell per stop
         const stopsCount = destIndex - sourceIndex;
         const estimatedDuration = Math.round(travelDistance * 2.5 + stopsCount);
+
+        // Fetch corresponding bus object
+        const busesData = SharedStore.getItem(KEYS.BUSES) || [];
+        const bus = busesData.find(b => b.id === route.number) || {
+          id: route.number,
+          name: route.name,
+          type: "City",
+          stops: route.stops
+        };
 
         results.push({
           bus: bus,
