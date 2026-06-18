@@ -2,6 +2,7 @@ import { supabase } from './supabaseClient';
 
 export const ETAService = {
   async getPredictionsForTrip(tripId) {
+    if (!supabase) return [];
     const { data, error } = await supabase
       .from('eta_predictions')
       .select('*')

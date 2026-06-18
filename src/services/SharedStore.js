@@ -179,6 +179,10 @@ export const SharedStore = {
   },
 
   async syncFromSupabase() {
+    if (!supabase) {
+      console.warn("SharedStore: Supabase client is not initialized. Skipping initial database sync.");
+      return;
+    }
     try {
       // 1. Buses
       const { data: buses } = await supabase.from('buses').select('*');
@@ -356,6 +360,10 @@ export const SharedStore = {
   },
 
   subscribeToRealtime() {
+    if (!supabase) {
+      console.warn("SharedStore: Supabase client is not initialized. Skipping realtime subscriptions.");
+      return;
+    }
     // 1. live_bus_status
     supabase
       .channel('live_bus_status_channel')

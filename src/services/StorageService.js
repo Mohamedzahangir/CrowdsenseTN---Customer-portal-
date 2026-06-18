@@ -29,7 +29,7 @@ const defaultProfile = {
 };
 
 // Start async synchronization loops for commuter profile and saved routes
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined' && supabase) {
   // Sync Profile
   supabase.from('commuters').select('*').eq('id', 'c1').single().then(({ data: commuter }) => {
     if (commuter) {
@@ -82,13 +82,15 @@ export const StorageService = {
       window.dispatchEvent(new CustomEvent("crowdsense_store_updated", { detail: { key: KEYS.SAVED_ROUTES } }));
 
       // Push to Supabase
-      const { error } = await supabase.from('saved_routes').insert([{
-        id: route.id || 'sr_' + Date.now(),
-        commuter_id: 'c1',
-        route_number: route.busId,
-        label: route.label
-      }]);
-      if (error) console.error("Error saving route in Supabase:", error);
+      if (supabase) {
+        const { error } = await supabase.from('saved_routes').insert([{
+          id: route.id || 'sr_' + Date.now(),
+          commuter_id: 'c1',
+          route_number: route.busId,
+          label: route.label
+        }]);
+        if (error) console.error("Error saving route in Supabase:", error);
+      }
     }
   },
 
@@ -99,8 +101,10 @@ export const StorageService = {
     window.dispatchEvent(new CustomEvent("crowdsense_store_updated", { detail: { key: KEYS.SAVED_ROUTES } }));
 
     // Delete from Supabase
-    const { error } = await supabase.from('saved_routes').delete().eq('commuter_id', 'c1').eq('route_number', busId);
-    if (error) console.error("Error removing route in Supabase:", error);
+    if (supabase) {
+      const { error } = await supabase.from('saved_routes').delete().eq('commuter_id', 'c1').eq('route_number', busId);
+      if (error) console.error("Error removing route in Supabase:", error);
+    }
   },
 
   getRecentSearches() {
@@ -149,8 +153,10 @@ export const StorageService = {
       if (profileData.role) dbFields.role = profileData.role;
       if (profileData.transitId) dbFields.transit_id = profileData.transitId;
 
-      const { error } = await supabase.from('commuters').update(dbFields).eq('id', 'c1');
-      if (error) console.error("Error updating commuter profile in Supabase:", error);
+      if (supabase) {
+        const { error } = await supabase.from('commuters').update(dbFields).eq('id', 'c1');
+        if (error) console.error("Error updating commuter profile in Supabase:", error);
+      }
     }
 
     if (profileData.tripsCount || profileData.timeSaved || profileData.co2Offset || profileData.avoidanceScore) {
@@ -160,8 +166,10 @@ export const StorageService = {
       if (profileData.co2Offset) dbFields.co2_offset = profileData.co2Offset;
       if (profileData.avoidanceScore) dbFields.avoidance_score = profileData.avoidanceScore;
 
-      const { error } = await supabase.from('commuter_analytics').update(dbFields).eq('commuter_id', 'c1');
-      if (error) console.error("Error updating commuter analytics in Supabase:", error);
+      if (supabase) {
+        const { error } = await supabase.from('commuter_analytics').update(dbFields).eq('commuter_id', 'c1');
+        if (error) console.error("Error updating commuter analytics in Supabase:", error);
+      }
     }
 
     return updated;

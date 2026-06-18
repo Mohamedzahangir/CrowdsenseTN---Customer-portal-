@@ -2,6 +2,7 @@ import { supabase } from './supabaseClient';
 
 export const AnalyticsService = {
   async getCommuterAnalytics(commuterId) {
+    if (!supabase) return null;
     const { data, error } = await supabase
       .from('commuter_analytics')
       .select('*')

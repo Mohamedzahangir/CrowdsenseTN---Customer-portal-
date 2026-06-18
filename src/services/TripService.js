@@ -2,6 +2,7 @@ import { supabase } from './supabaseClient';
 
 export const TripService = {
   async getTripHistory(commuterId) {
+    if (!supabase) return [];
     const { data, error } = await supabase
       .from('trip_history')
       .select('*')
@@ -15,6 +16,7 @@ export const TripService = {
   },
 
   async logCommuterTrip(trip) {
+    if (!supabase) return null;
     const { data, error } = await supabase
       .from('trip_history')
       .insert([trip])
