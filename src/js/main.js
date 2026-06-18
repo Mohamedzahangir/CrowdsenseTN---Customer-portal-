@@ -102,7 +102,7 @@ function router() {
 window.addEventListener('hashchange', router);
 
 // Bootstrap application
-document.addEventListener('DOMContentLoaded', () => {
+const bootstrap = () => {
   const currentHash = window.location.hash;
   if (currentHash && currentHash !== '#/loading') {
     sessionStorage.setItem('redirect_target', currentHash);
@@ -110,4 +110,10 @@ document.addEventListener('DOMContentLoaded', () => {
   
   window.location.hash = '#/loading';
   router();
-});
+};
+
+if (document.readyState === "loading") {
+  document.addEventListener('DOMContentLoaded', bootstrap);
+} else {
+  bootstrap();
+}

@@ -1,5 +1,6 @@
 // SharedStore.js - Centralized Local Storage Data Store for CrowdSense TN
 // Seeds mock data, provides shared keys, and acts as the client-side database.
+import { supabase } from './supabaseClient';
 
 export const KEYS = {
   BUSES: "crowdsense_admin_buses",
@@ -143,7 +144,10 @@ export const defaultActivities = [
 ];
 
 export const SharedStore = {
+  initialized: false,
   init() {
+    if (this.initialized) return;
+    this.initialized = true;
     if (!localStorage.getItem(KEYS.BUSES) || localStorage.getItem(KEYS.BUSES) === "[]") localStorage.setItem(KEYS.BUSES, JSON.stringify(defaultBuses));
     if (!localStorage.getItem(KEYS.ROUTES) || localStorage.getItem(KEYS.ROUTES) === "[]") localStorage.setItem(KEYS.ROUTES, JSON.stringify(defaultRoutes));
     if (!localStorage.getItem(KEYS.DEVICES) || localStorage.getItem(KEYS.DEVICES) === "[]") localStorage.setItem(KEYS.DEVICES, JSON.stringify(defaultDevices));
@@ -151,6 +155,10 @@ export const SharedStore = {
     if (!localStorage.getItem(KEYS.USERS) || localStorage.getItem(KEYS.USERS) === "[]") localStorage.setItem(KEYS.USERS, JSON.stringify(defaultUsers));
     if (!localStorage.getItem(KEYS.SETTINGS)) localStorage.setItem(KEYS.SETTINGS, JSON.stringify(defaultSettings));
     if (!localStorage.getItem(KEYS.ACTIVITIES) || localStorage.getItem(KEYS.ACTIVITIES) === "[]") localStorage.setItem(KEYS.ACTIVITIES, JSON.stringify(defaultActivities));
+    
+    // Trigger async supabase replication
+    this.syncFromSupabase();
+    this.subscribeToRealtime();
   },
 
   getItem(key) {
@@ -168,6 +176,372 @@ export const SharedStore = {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("crowdsense_store_updated", { detail: { key } }));
     }
+  },
+
+  async syncFromSupabase() {
+    try {
+      // 1. Buses
+      const { data: buses } = await supabase.from('buses').select('*');
+      if (buses) {
+        const formatted = buses.map(b => ({
+          id: b.id,
+          number: b.number,
+          name: b.name,
+          type: b.type,
+          source: b.source,
+          destination: b.destination,
+          platform: b.platform,
+          capacity: b.capacity,
+          status: b.status,
+          deviceId: b.device_id,
+          driverName: b.driver_name
+        }));
+        localStorage.setItem(KEYS.BUSES, JSON.stringify(formatted));
+      }
+
+      // 2. Routes
+      const { data: routesData } = await supabase
+        .from('routes')
+        .select(`
+          number,
+          name,
+          source,
+          destination,
+          daily_passengers,
+          occupancy_stats,
+          route_stops (
+            distance,
+            scheduled_time,
+            sequence_order,
+            stops (
+              name,
+              latitude,
+              longitude
+            )
+          )
+        `);
+      if (routesData) {
+        const formatted = routesData.map(r => ({
+          number: r.number,
+          name: r.name,
+          source: r.source,
+          destination: r.destination,
+          dailyPassengers: r.daily_passengers,
+          occupancyStats: r.occupancy_stats,
+          stops: r.route_stops
+            ? r.route_stops
+                .sort((a, b) => a.sequence_order - b.sequence_order)
+                .map(rs => ({
+                  name: rs.stops ? rs.stops.name : '',
+                  distance: rs.distance ? Number(rs.distance) : 0,
+                  scheduledTime: rs.scheduled_time || '',
+                  lat: rs.stops ? Number(rs.stops.latitude) : 0,
+                  lng: rs.stops ? Number(rs.stops.longitude) : 0
+                }))
+            : []
+        }));
+        localStorage.setItem(KEYS.ROUTES, JSON.stringify(formatted));
+      }
+
+      // 3. Devices
+      const { data: devices } = await supabase.from('devices').select('*');
+      if (devices) {
+        const formatted = devices.map(d => ({
+          id: d.id,
+          busId: d.bus_id,
+          status: d.status,
+          lastComm: d.last_comm,
+          fwVersion: d.fw_version,
+          rssi: d.rssi,
+          heap: d.heap,
+          temperature: d.temperature
+        }));
+        localStorage.setItem(KEYS.DEVICES, JSON.stringify(formatted));
+      }
+
+      // 4. Alerts
+      const { data: alerts } = await supabase.from('alerts').select('*').order('created_at', { ascending: false });
+      if (alerts) {
+        const formatted = alerts.map(a => ({
+          id: a.id,
+          type: a.type,
+          title: a.title,
+          desc: a.description,
+          busId: a.bus_id,
+          priority: a.priority,
+          status: a.status,
+          time: a.time
+        }));
+        localStorage.setItem(KEYS.ALERTS, JSON.stringify(formatted));
+      }
+
+      // 5. Admin Users
+      const { data: users } = await supabase.from('admin_users').select('*');
+      if (users) {
+        const formatted = users.map(u => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          status: u.status
+        }));
+        localStorage.setItem(KEYS.USERS, JSON.stringify(formatted));
+      }
+
+      // 6. Settings
+      const { data: settings } = await supabase.from('system_settings').select('*').eq('key', 'config').single();
+      if (settings) {
+        localStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings.value));
+      }
+
+      // 7. Live Bus Status
+      const { data: liveStatus } = await supabase.from('live_bus_status').select('*');
+      if (liveStatus) {
+        const tracking = {};
+        const occupancy = {};
+        liveStatus.forEach(r => {
+          tracking[r.bus_id] = {
+            busId: r.bus_id,
+            progress: Number(r.progress),
+            speed: Number(r.speed),
+            currentStop: r.current_stop,
+            nextStop: r.next_stop,
+            eta: Number(r.eta),
+            lat: Number(r.latitude),
+            lng: Number(r.longitude),
+            health: r.health,
+            lastStopIndex: r.last_stop_index,
+            nextStopIndex: r.next_stop_index,
+            distanceToNext: Number(r.distance_to_next),
+            lastUpdated: new Date(r.last_updated)
+          };
+          occupancy[r.bus_id] = {
+            busId: r.bus_id,
+            passengers: r.passengers,
+            capacity: r.capacity,
+            percentage: r.percentage,
+            status: r.percentage <= 40 ? "Low Crowd" : r.percentage <= 75 ? "Medium Crowd" : "High Crowd",
+            class: r.percentage <= 40 ? "status-chip-low" : r.percentage <= 75 ? "status-chip-medium" : "status-chip-high",
+            colorHex: r.percentage <= 40 ? "#22c55e" : r.percentage <= 75 ? "#eab308" : "#ef4444",
+            lastUpdated: new Date(r.last_updated)
+          };
+        });
+        localStorage.setItem(KEYS.TRACKING, JSON.stringify(tracking));
+        localStorage.setItem(KEYS.OCCUPANCY, JSON.stringify(occupancy));
+      }
+
+      // 8. Activities
+      const { data: activities } = await supabase
+        .from('iot_events')
+        .select('*')
+        .eq('event_type', 'system_activity')
+        .order('timestamp', { ascending: false })
+        .limit(30);
+      if (activities) {
+        const formatted = activities.map(act => ({
+          id: 'act_' + act.id,
+          title: act.payload ? act.payload.title : 'System Log',
+          desc: act.payload ? act.payload.desc : '',
+          time: 'Just now'
+        }));
+        localStorage.setItem(KEYS.ACTIVITIES, JSON.stringify(formatted));
+      }
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("crowdsense_store_updated", { detail: { key: "all" } }));
+      }
+    } catch (e) {
+      console.error("SharedStore Supabase initial sync failed:", e);
+    }
+  },
+
+  subscribeToRealtime() {
+    // 1. live_bus_status
+    supabase
+      .channel('live_bus_status_channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'live_bus_status' }, payload => {
+        const r = payload.new;
+        if (r) {
+          const tracking = this.getItem(KEYS.TRACKING) || {};
+          const occupancy = this.getItem(KEYS.OCCUPANCY) || {};
+
+          tracking[r.bus_id] = {
+            busId: r.bus_id,
+            progress: Number(r.progress),
+            speed: Number(r.speed),
+            currentStop: r.current_stop,
+            nextStop: r.next_stop,
+            eta: Number(r.eta),
+            lat: Number(r.latitude),
+            lng: Number(r.longitude),
+            health: r.health,
+            lastStopIndex: r.last_stop_index,
+            nextStopIndex: r.next_stop_index,
+            distanceToNext: Number(r.distance_to_next),
+            lastUpdated: new Date(r.last_updated)
+          };
+
+          occupancy[r.bus_id] = {
+            busId: r.bus_id,
+            passengers: r.passengers,
+            capacity: r.capacity,
+            percentage: r.percentage,
+            status: r.percentage <= 40 ? "Low Crowd" : r.percentage <= 75 ? "Medium Crowd" : "High Crowd",
+            class: r.percentage <= 40 ? "status-chip-low" : r.percentage <= 75 ? "status-chip-medium" : "status-chip-high",
+            colorHex: r.percentage <= 40 ? "#22c55e" : r.percentage <= 75 ? "#eab308" : "#ef4444",
+            lastUpdated: new Date(r.last_updated)
+          };
+
+          localStorage.setItem(KEYS.TRACKING, JSON.stringify(tracking));
+          localStorage.setItem(KEYS.OCCUPANCY, JSON.stringify(occupancy));
+          
+          window.dispatchEvent(new CustomEvent("crowdsense_store_updated", { detail: { key: KEYS.TRACKING } }));
+        }
+      })
+      .subscribe();
+
+    // 2. alerts
+    supabase
+      .channel('alerts_channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'alerts' }, () => {
+        supabase.from('alerts').select('*').order('created_at', { ascending: false }).then(({ data }) => {
+          if (data) {
+            const formatted = data.map(a => ({
+              id: a.id,
+              type: a.type,
+              title: a.title,
+              desc: a.description,
+              busId: a.bus_id,
+              priority: a.priority,
+              status: a.status,
+              time: a.time
+            }));
+            localStorage.setItem(KEYS.ALERTS, JSON.stringify(formatted));
+            window.dispatchEvent(new CustomEvent("crowdsense_store_updated", { detail: { key: KEYS.ALERTS } }));
+          }
+        });
+      })
+      .subscribe();
+
+    // 3. devices
+    supabase
+      .channel('devices_channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'devices' }, () => {
+        supabase.from('devices').select('*').then(({ data }) => {
+          if (data) {
+            const formatted = data.map(d => ({
+              id: d.id,
+              busId: d.bus_id,
+              status: d.status,
+              lastComm: d.last_comm,
+              fwVersion: d.fw_version,
+              rssi: d.rssi,
+              heap: d.heap,
+              temperature: d.temperature
+            }));
+            localStorage.setItem(KEYS.DEVICES, JSON.stringify(formatted));
+            window.dispatchEvent(new CustomEvent("crowdsense_store_updated", { detail: { key: KEYS.DEVICES } }));
+          }
+        });
+      })
+      .subscribe();
+
+    // 4. iot_events
+    supabase
+      .channel('iot_events_channel')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'iot_events' }, payload => {
+        const event = payload.new;
+        if (event && event.event_type === 'system_activity') {
+          const activities = this.getItem(KEYS.ACTIVITIES) || [];
+          activities.unshift({
+            id: 'act_' + event.id,
+            title: event.payload ? event.payload.title : 'System Log',
+            desc: event.payload ? event.payload.desc : '',
+            time: 'Just now'
+          });
+          const capped = activities.slice(0, 30);
+          localStorage.setItem(KEYS.ACTIVITIES, JSON.stringify(capped));
+          window.dispatchEvent(new CustomEvent("crowdsense_store_updated", { detail: { key: KEYS.ACTIVITIES } }));
+        }
+      })
+      .subscribe();
+
+    // 5. buses realtime
+    supabase
+      .channel('buses_channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'buses' }, () => {
+        supabase.from('buses').select('*').then(({ data }) => {
+          if (data) {
+            const formatted = data.map(b => ({
+              id: b.id,
+              number: b.number,
+              name: b.name,
+              type: b.type,
+              source: b.source,
+              destination: b.destination,
+              platform: b.platform,
+              capacity: b.capacity,
+              status: b.status,
+              deviceId: b.device_id,
+              driverName: b.driver_name
+            }));
+            localStorage.setItem(KEYS.BUSES, JSON.stringify(formatted));
+            window.dispatchEvent(new CustomEvent("crowdsense_store_updated", { detail: { key: KEYS.BUSES } }));
+          }
+        });
+      })
+      .subscribe();
+
+    // 6. routes realtime
+    supabase
+      .channel('routes_channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'routes' }, () => {
+        supabase
+          .from('routes')
+          .select(`
+            number,
+            name,
+            source,
+            destination,
+            daily_passengers,
+            occupancy_stats,
+            route_stops (
+              distance,
+              scheduled_time,
+              sequence_order,
+              stops (
+                name,
+                latitude,
+                longitude
+              )
+            )
+          `).then(({ data: routesData }) => {
+            if (routesData) {
+              const formatted = routesData.map(r => ({
+                number: r.number,
+                name: r.name,
+                source: r.source,
+                destination: r.destination,
+                dailyPassengers: r.daily_passengers,
+                occupancyStats: r.occupancy_stats,
+                stops: r.route_stops
+                  ? r.route_stops
+                      .sort((a, b) => a.sequence_order - b.sequence_order)
+                      .map(rs => ({
+                        name: rs.stops ? rs.stops.name : '',
+                        distance: rs.distance ? Number(rs.distance) : 0,
+                        scheduledTime: rs.scheduled_time || '',
+                        lat: rs.stops ? Number(rs.stops.latitude) : 0,
+                        lng: rs.stops ? Number(rs.stops.longitude) : 0
+                      }))
+                  : []
+              }));
+              localStorage.setItem(KEYS.ROUTES, JSON.stringify(formatted));
+              window.dispatchEvent(new CustomEvent("crowdsense_store_updated", { detail: { key: KEYS.ROUTES } }));
+            }
+          });
+      })
+      .subscribe();
   }
 };
 
@@ -175,4 +549,3 @@ export const SharedStore = {
 if (typeof window !== "undefined" && typeof localStorage !== "undefined") {
   SharedStore.init();
 }
-

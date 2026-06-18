@@ -1,5 +1,6 @@
 // bus-details.js - Bus Details and Live Stop progression timeline page
 import { BusService } from '../services/BusService';
+import { RouteService } from '../services/RouteService';
 import { TrackingService } from '../services/TrackingService';
 import { OccupancyService } from '../services/OccupancyService';
 import { StorageService } from '../services/StorageService';
@@ -152,6 +153,10 @@ export const BusDetailsPage = {
     const bus = BusService.getBusDetails(busId);
     if (!bus) return;
 
+    BusDetailsPage.currentBusId = busId;
+    const route = RouteService.getRouteDetails(busId);
+    const stops = route ? route.stops : [];
+
     // Back Button
     const backBtn = document.getElementById('back-btn');
     if (backBtn) {
@@ -238,7 +243,7 @@ export const BusDetailsPage = {
       if (lastStopEl) lastStopEl.textContent = state.currentStop;
       
       // Update approaching banner status
-      if (state.lastStopIndex === bus.stops.length - 1) {
+      if (state.lastStopIndex === stops.length - 1) {
         approachingBanner.className = "bg-green-100 text-green-800 px-4 py-2 rounded-full shadow-lg flex items-center gap-2";
         approachingText.textContent = `Bus has arrived at ${bus.destination}`;
       } else {
@@ -283,7 +288,7 @@ export const BusDetailsPage = {
       const lastIdx = trackingState.lastStopIndex;
       const nextIdx = trackingState.nextStopIndex;
 
-      timelineContainer.innerHTML = bus.stops.map((stop, index) => {
+      timelineContainer.innerHTML = stops.map((stop, index) => {
         let nodeClass = "relative pl-10 pb-8 railway-line";
         let nodeDot = "";
         let contentClass = "flex justify-between items-start";
@@ -292,7 +297,7 @@ export const BusDetailsPage = {
 
         if (index === 0) {
           stopLabel = "Source";
-        } else if (index === bus.stops.length - 1) {
+        } else if (index === stops.length - 1) {
           stopLabel = "Destination";
           nodeClass = "relative pl-10 pb-8"; // no tail line at destination
         }
@@ -307,7 +312,7 @@ export const BusDetailsPage = {
           `;
           contentClass += " opacity-70";
           estTimeLabel = `<span class="text-body-sm text-on-surface-variant font-semibold">Passed</span>`;
-          if (index > 0 && index < bus.stops.length - 1) {
+          if (index > 0 && index < stops.length - 1) {
             stopLabel = "Departed";
           }
         } 
@@ -334,7 +339,7 @@ export const BusDetailsPage = {
           contentClass += " opacity-50";
           
           // Estimate upcoming time based on schedules or distances
-          stopLabel = stopLabel || `Distance: ${Math.round((stop.distance - (trackingState.progress/100)*bus.stops[bus.stops.length-1].distance)*10)/10} km`;
+          stopLabel = stopLabel || `Distance: ${Math.round((stop.distance - (trackingState.progress/100)*stops[stops.length-1].distance)*10)/10} km`;
           estTimeLabel = `<span class="text-body-sm text-on-surface">${stop.scheduledTime}</span>`;
         }
 
@@ -357,7 +362,7 @@ export const BusDetailsPage = {
           </div>
           
           <!-- Vehicle Icon floating on timeline between last passed and next arriving stop -->
-          ${index === lastIdx && lastIdx !== bus.stops.length - 1 ? `
+          ${index === lastIdx && lastIdx !== stops.length - 1 ? `
             <div class="relative pl-10 h-0 z-20">
               <div class="absolute -left-3 -top-3 flex items-center justify-center bg-white rounded-full p-1 shadow-md border-2 border-primary">
                 <span class="material-symbols-outlined text-primary text-[20px] pulse-live" style="font-variation-settings: 'FILL' 1;">directions_bus</span>
@@ -373,8 +378,7 @@ export const BusDetailsPage = {
   },
 
   unmount() {
-    const hashData = window.location.hash.split('?')[1] || '';
-    const busId = hashData.includes('id=') ? hashData.split('id=')[1].split('&')[0] : '47A';
+    const busId = BusDetailsPage.currentBusId || '47A';
     
     if (trackingSub) {
       TrackingService.unsubscribe(busId, trackingSub);

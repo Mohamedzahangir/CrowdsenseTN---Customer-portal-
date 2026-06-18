@@ -1,5 +1,6 @@
 // map.js - Live Map & Route Listing page module with Leaflet real map integration.
 import { BusService } from '../services/BusService';
+import { RouteService } from '../services/RouteService';
 import { TrackingService } from '../services/TrackingService';
 import { OccupancyService } from '../services/OccupancyService';
 import { StatusBadge } from '../components/StatusBadge';
@@ -55,29 +56,6 @@ export const MapPage = {
               <button id="btn-map-fit" class="w-12 h-12 glass-panel rounded-xl shadow-md flex items-center justify-center text-on-surface-variant active:scale-95 transition-all hover:bg-white/90" title="Fit All Active Buses">
                 <span class="material-symbols-outlined">layers</span>
               </button>
-            </div>
-          </div>
-
-          <!-- Bottom Sheet Overlay -->
-          <div class="bottom-sheet fixed bottom-20 left-0 right-0 z-30 mx-auto max-w-2xl" id="bottom-sheet" style="transform: translateY(0);">
-            <div class="glass-panel rounded-t-[32px] shadow-[0_-10px_25px_-5px_rgba(37,99,235,0.1)] px-4 pb-28 pt-4 h-[380px] max-h-[45dvh] md:max-h-[50dvh] overflow-y-auto">
-              <!-- Drag Handle -->
-              <div id="drag-handle" class="w-12 h-1.5 bg-outline-variant/60 rounded-full mx-auto mb-6 cursor-row-resize"></div>
-              
-              <div class="flex justify-between items-center mb-5">
-                <div>
-                  <h2 class="font-title-lg text-title-lg text-on-surface font-bold">Nearby Buses</h2>
-                  <p class="font-body-sm text-body-sm text-on-surface-variant" id="nearby-status-text">Detecting active vehicles...</p>
-                </div>
-                <button class="text-primary font-label-caps text-label-caps font-bold flex items-center gap-1 hover:underline" id="view-all-routes-btn">
-                  View All <span class="material-symbols-outlined text-sm">arrow_forward</span>
-                </button>
-              </div>
-
-              <!-- Nearby Buses List -->
-              <div id="nearby-buses-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <!-- Dynamically populated bus cards -->
-              </div>
             </div>
           </div>
         </div>
@@ -308,7 +286,9 @@ export const MapPage = {
       const animMarkers = {};
 
       buses.forEach(bus => {
-        const routeCoords = bus.stops.map(stop => [stop.lat, stop.lng]);
+        const route = RouteService.getRouteDetails(bus.id);
+        if (!route || !route.stops || route.stops.length === 0) return;
+        const routeCoords = route.stops.map(stop => [stop.lat, stop.lng]);
         
         let pathColor = '#004ac6'; // Default primary blue
         if (bus.id === "19B") pathColor = '#943700'; // Orange
@@ -358,7 +338,9 @@ export const MapPage = {
           const card = routesListContainer.querySelector(`[data-route-bus-id="${bus.id}"]`);
           if (!card) return;
 
-          const state = allStates[bus.id] || { eta: 15, currentStop: bus.stops[0].name };
+          const route = RouteService.getRouteDetails(bus.id);
+          const defaultStopName = route && route.stops && route.stops.length > 0 ? route.stops[0].name : '-';
+          const state = allStates[bus.id] || { eta: 15, currentStop: defaultStopName };
           const occupancy = allOccupancy[bus.id] || { percentage: 25 };
 
           const stopNameEl = card.querySelector('.current-stop-name');

@@ -1,5 +1,6 @@
 // BusCard.js - Reusable Bus summary card component
 import { StatusBadge } from './StatusBadge';
+import { RouteService } from '../services/RouteService';
 
 export const BusCard = {
   getBadgeColors(bus) {
@@ -17,7 +18,16 @@ export const BusCard = {
   render(bus, trackingState, occupancyState) {
     const bgClass = this.getBadgeColors(bus);
     const eta = trackingState ? trackingState.eta : 10;
-    const currentStop = trackingState ? trackingState.currentStop : bus.stops[0].name;
+    
+    let currentStop = "-";
+    if (trackingState) {
+      currentStop = trackingState.currentStop;
+    } else {
+      const route = RouteService.getRouteDetails(bus.id);
+      if (route && route.stops && route.stops.length > 0) {
+        currentStop = route.stops[0].name;
+      }
+    }
     const percentage = occupancyState ? occupancyState.percentage : 30;
     
     return `

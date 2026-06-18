@@ -190,7 +190,16 @@ export const SearchComponent = {
         const tracker = TrackingService.getBusLocation(match.bus.id);
         const occupancy = OccupancyService.getOccupancy(match.bus.id);
         const eta = tracker ? tracker.eta : 10;
-        const currentStop = tracker ? tracker.currentStop : match.bus.stops[0].name;
+        
+        let currentStop = "-";
+        if (tracker) {
+          currentStop = tracker.currentStop;
+        } else {
+          const route = RouteService.getRouteDetails(match.bus.id);
+          if (route && route.stops && route.stops.length > 0) {
+            currentStop = route.stops[0].name;
+          }
+        }
         const crowdLevelBadge = StatusBadge.render(occupancy ? occupancy.percentage : 30);
 
         return `

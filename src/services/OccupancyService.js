@@ -1,34 +1,9 @@
 // OccupancyService.js - Passenger load sensors service synced with the Admin Portal.
-// Consumes the centralized SharedStore database and defines clear integration hooks.
 import { SharedStore, KEYS } from './SharedStore';
 import { BusService } from './BusService';
 
 const listeners = {};
 let localOccupancyStates = {};
-let fallbackOccInterval = null;
-
-function initializeOccupancy() {
-  const allBuses = BusService.getAllBuses();
-  allBuses.forEach(bus => {
-    let passengers = 20 + Math.floor(Math.random() * (bus.capacity - 25));
-    if (bus.id === "47A") passengers = 42;
-    if (bus.id === "19B") passengers = 54;
-    if (bus.id === "23C") passengers = 28;
-
-    localOccupancyStates[bus.id] = {
-      busId: bus.id,
-      passengers: passengers,
-      capacity: bus.capacity,
-      percentage: Math.round((passengers / bus.capacity) * 100),
-      status: "Low Crowd",
-      class: "status-chip-low",
-      colorHex: "#22c55e",
-      lastUpdated: new Date()
-    };
-    updateCrowdStatus(bus.id);
-  });
-  SharedStore.setItem(KEYS.OCCUPANCY, localOccupancyStates);
-}
 
 function updateCrowdStatus(busId) {
   const state = localOccupancyStates[busId];
@@ -54,9 +29,7 @@ function updateCrowdStatus(busId) {
 // Start occupancy sync ticker
 if (typeof window !== 'undefined') {
   const sharedOcc = SharedStore.getItem(KEYS.OCCUPANCY);
-  if (!sharedOcc) {
-    initializeOccupancy();
-  } else {
+  if (sharedOcc) {
     localOccupancyStates = sharedOcc;
   }
 
@@ -64,29 +37,7 @@ if (typeof window !== 'undefined') {
   setInterval(() => {
     const sharedData = SharedStore.getItem(KEYS.OCCUPANCY);
     if (sharedData) {
-      // Determine if Admin is actively updating
-      let isAdminActive = false;
-      const firstBusId = Object.keys(sharedData)[0];
-      if (firstBusId && sharedData[firstBusId].lastUpdated) {
-        const lastUpd = new Date(sharedData[firstBusId].lastUpdated).getTime();
-        const diff = Date.now() - lastUpd;
-        if (diff < 20000) {
-          isAdminActive = true;
-        }
-      }
-
-      if (isAdminActive) {
-        localOccupancyStates = sharedData;
-        if (fallbackOccInterval) {
-          clearInterval(fallbackOccInterval);
-          fallbackOccInterval = null;
-        }
-      } else {
-        if (!fallbackOccInterval) {
-          startLocalFallbackSimulation();
-        }
-      }
-
+      localOccupancyStates = sharedData;
       triggerListeners();
     }
   }, 2000);
@@ -102,30 +53,9 @@ function triggerListeners() {
   });
 }
 
-function startLocalFallbackSimulation() {
-  fallbackOccInterval = setInterval(() => {
-    const buses = BusService.getAllBuses();
-    buses.forEach(bus => {
-      if (bus.status !== "Active") return;
-      const state = localOccupancyStates[bus.id];
-      if (!state) return;
-
-      const change = Math.floor(Math.random() * 7) - 3;
-      state.passengers = Math.max(5, Math.min(state.capacity, state.passengers + change));
-      state.lastUpdated = new Date();
-      updateCrowdStatus(bus.id);
-    });
-
-    SharedStore.setItem(KEYS.OCCUPANCY, localOccupancyStates);
-  }, 10000);
-}
-
 export const OccupancyService = {
   // Synchronous contract to maintain backward-compatibility with UI modules.
-  // ESP32 Integration: Swap with ESP32 occupancy counting hardware APIs.
-
   getOccupancy(busId) {
-    // API integration point: return await fetch(`/api/occupancy/${busId}`).then(r => r.json());
     return localOccupancyStates[busId] || null;
   },
 
@@ -134,8 +64,6 @@ export const OccupancyService = {
   },
 
   updateOccupancy(busId, passengers) {
-    // ESP32 occupancy device webhook integration point:
-    // fetch(`/api/occupancy/${busId}`, { method: 'POST', body: JSON.stringify({ passengers }) });
     if (!localOccupancyStates[busId]) {
       const bus = BusService.getBusDetails(busId);
       localOccupancyStates[busId] = {
