@@ -63,7 +63,7 @@ export const defaultRoutes = [
       { name: "Mylapore Temple", distance: 0, scheduledTime: "09:45 AM", lat: 13.0330, lng: 80.2690 },
       { name: "Mandaveli", distance: 1.8, scheduledTime: "09:52 AM", lat: 13.0232, lng: 80.2625 },
       { name: "Adyar Depot", distance: 4.5, scheduledTime: "10:05 AM", lat: 13.0064, lng: 80.2577 },
-      { name: "Thiruvanmiyur", distance: 7.2, scheduledTime: 12.9830, lng: 80.2516 }
+      { name: "Thiruvanmiyur", distance: 7.2, scheduledTime: "10:20 AM", lat: 12.9830, lng: 80.2516 }
     ],
     dailyPassengers: 1800,
     occupancyStats: { peak: "76%", avg: "48%" }
